@@ -1,0 +1,13 @@
+{
+  "name": "com.dragoff.objectpooling",
+  "version": "1.0.0",
+  "displayName": "Pool Manager",
+  "author": "@dragoff (Evgeniy A)",
+  "unity": "2019.1",
+  "description": "Simple Unity gameobject pool",
+  "files": [	
+	"Scripts",
+	"Scripts.meta",
+	"package.json.meta"
+  ]
+}
