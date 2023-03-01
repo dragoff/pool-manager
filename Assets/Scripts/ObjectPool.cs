@@ -1,86 +1,75 @@
 ﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
 
-namespace ObjectPooling
+namespace ObjectPool
 {
-    public class ObjectPool<T>
+    public class ObjectPool<T> : IDisposable, IObjectPool<T> where T : class
     {
-        private List<ObjectPoolContainer<T>> list;
-        private Dictionary<T, ObjectPoolContainer<T>> lookup;
-        private readonly Func<T> factoryFunc;
-        private int lastIndex = 0;
+        internal readonly List<T> m_List;
+        internal bool m_CollectionCheck;
+        private readonly Func<T> m_CreateFunc;
+        private readonly int m_MaxSize;
 
-        public ObjectPool(Func<T> factoryFunc, int initialSize)
+        public int CountAll { get; private set; }
+
+        public int CountActive => this.CountAll - this.CountInactive;
+
+        public int CountInactive => this.m_List.Count;
+
+        public ObjectPool(Func<T> createFunc, bool collectionCheck = true, int defaultCapacity = 10)
         {
-            this.factoryFunc = factoryFunc;
+            this.m_List = new List<T>(defaultCapacity);
+            this.m_CollectionCheck = collectionCheck;
+            this.m_CreateFunc = createFunc;
 
-            list = new List<ObjectPoolContainer<T>>(initialSize);
-            lookup = new Dictionary<T, ObjectPoolContainer<T>>(initialSize);
-
-            Warm(initialSize);
+            Warm(defaultCapacity);
         }
 
         private void Warm(int capacity)
         {
-            for (int i = 0; i < capacity; i++)
-                CreateContainer();
+            for (int index = 0; index < capacity; ++index)
+                this.m_List.Add(m_CreateFunc());
         }
 
-        private ObjectPoolContainer<T> CreateContainer()
+        public T Get()
         {
-            var container = new ObjectPoolContainer<T> {Item = factoryFunc()};
-            list.Add(container);
-            return container;
-        }
-
-        public T GetItem()
-        {
-            ObjectPoolContainer<T> container = null;
-            for (int i = 0; i < list.Count; i++)
+            T obj;
+            if (this.m_List.Count == 0)
             {
-                lastIndex++;
-                if (lastIndex > list.Count - 1) lastIndex = 0;
-
-                if (list[lastIndex].Used)
-                {
-                    continue;
-                }
-                else
-                {
-                    container = list[lastIndex];
-                    break;
-                }
-            }
-
-            if (container == null)
-                container = CreateContainer();
-            container.Consume();
-            lookup.Add(container.Item, container);
-            return container.Item;
-        }
-
-        public void ReleaseItem(object item)
-        {
-            ReleaseItem((T) item);
-        }
-
-        public void ReleaseItem(T item)
-        {
-            if (lookup.ContainsKey(item))
-            {
-                var container = lookup[item];
-                container.Release();
-                lookup.Remove(item);
+                obj = this.m_CreateFunc();
+                ++this.CountAll;
             }
             else
             {
-                Debug.LogWarning("This object pool does not contain the item provided: " + item);
+                int index = this.m_List.Count - 1;
+                obj = this.m_List[index];
+                this.m_List.RemoveAt(index);
             }
+            return obj;
         }
 
-        public int Count => list.Count;
+        public PooledObject<T> Get(out T v) => new PooledObject<T>(v = this.Get(), this);
 
-        public int CountUsedItems => lookup.Count;
+        public void Release(T element)
+        {
+            if (this.m_CollectionCheck && this.m_List.Count > 0)
+            {
+                for (int index = 0; index < this.m_List.Count; ++index)
+                {
+                    if ((object)element == (object)this.m_List[index])
+                        throw new InvalidOperationException("Trying to release an object that has already been released to the pool.");
+                }
+            }
+            if (this.CountInactive < this.m_MaxSize)
+                this.m_List.Add(element);
+        }
+
+        public void Clear()
+        {
+            this.m_List.Clear();
+            this.CountAll = 0;
+        }
+
+        public void Dispose() => this.Clear();
     }
 }
