@@ -18,17 +18,20 @@ namespace ObjectPool
 
         public ObjectPool(Func<T> createFunc, bool collectionCheck = true, int defaultCapacity = 10)
         {
-            this.m_List = new List<T>(defaultCapacity);
             this.m_CollectionCheck = collectionCheck;
             this.m_CreateFunc = createFunc;
+            this.m_List = new List<T>(defaultCapacity);
 
-            Warm(defaultCapacity);
-        }
-
-        private void Warm(int capacity)
-        {
-            for (int index = 0; index < capacity; ++index)
+            for (int index = 0; index < defaultCapacity; ++index)
                 this.m_List.Add(m_CreateFunc());
+        }
+        
+        public ObjectPool(IEnumerable<T> items, Func<T> createFunc, bool collectionCheck = true, int defaultCapacity = 10)
+        {
+            this.m_CollectionCheck = collectionCheck;
+            this.m_CreateFunc = createFunc;
+            this.m_List = new List<T>(defaultCapacity);
+            this.m_List.AddRange(items);
         }
 
         public T Get()
